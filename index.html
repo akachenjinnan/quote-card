@@ -499,6 +499,30 @@
         <button class="emoji-btn" data-e="📖">📖</button>
         <button class="emoji-btn" data-e="🍵">🍵</button>
         <button class="emoji-btn" data-e="🌻">🌻</button>
+        <button class="emoji-btn" data-e="🌷">🌷</button>
+        <button class="emoji-btn" data-e="🍂">🍂</button>
+        <button class="emoji-btn" data-e="❄️">❄️</button>
+        <button class="emoji-btn" data-e="🌈">🌈</button>
+        <button class="emoji-btn" data-e="🌅">🌅</button>
+        <button class="emoji-btn" data-e="🫧">🫧</button>
+        <button class="emoji-btn" data-e="🪷">🪷</button>
+        <button class="emoji-btn" data-e="🌾">🌾</button>
+        <button class="emoji-btn" data-e="🍀">🍀</button>
+        <button class="emoji-btn" data-e="🪴">🪴</button>
+        <button class="emoji-btn" data-e="🫶">🫶</button>
+        <button class="emoji-btn" data-e="💫">💫</button>
+        <button class="emoji-btn" data-e="🌟">🌟</button>
+        <button class="emoji-btn" data-e="💎">💎</button>
+        <button class="emoji-btn" data-e="🎐">🎐</button>
+        <button class="emoji-btn" data-e="🧧">🧧</button>
+        <button class="emoji-btn" data-e="🎋">🎋</button>
+        <button class="emoji-btn" data-e="🪩">🪩</button>
+        <button class="emoji-btn" data-e="🫀">🫀</button>
+        <button class="emoji-btn" data-e="🌌">🌌</button>
+        <button class="emoji-btn" data-e="🕯️">🕯️</button>
+        <button class="emoji-btn" data-e="📝">📝</button>
+        <button class="emoji-btn" data-e="🎵">🎵</button>
+        <button class="emoji-btn" data-e="🧩">🧩</button>
       </div>
     </div>
 
@@ -693,7 +717,7 @@ document.getElementById('clearLogo').addEventListener('click', () => {
 // ── export ──
 function getCanvas() {
   const card = document.getElementById('card');
-  const scale = 2;
+  const scale = 4;
   return html2canvas(card, {
     scale: scale,
     useCORS: true,
@@ -701,6 +725,8 @@ function getCanvas() {
     logging: false,
     width: card.offsetWidth,
     height: card.offsetHeight,
+    imageTimeout: 0,
+    removeContainer: true,
   });
 }
 
