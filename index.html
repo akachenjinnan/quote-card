@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>语录卡片生成器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --text: #1a1a1a;
+    --muted: #888;
+    --accent: #1a1a1a;
+    --radius: 16px;
+    --panel-width: 340px;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── top bar ── */
+  header {
+    padding: 14px 20px;
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  header h1 { font-size: 15px; font-weight: 500; letter-spacing: 0.02em; }
+  header span { font-size: 13px; color: var(--muted); }
+
+  /* ── layout ── */
+  .workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (min-width: 800px) {
+    .workspace { flex-direction: row; }
+  }
+
+  /* ── left panel ── */
+  .panel {
+    background: var(--surface);
+    border-right: 0.5px solid var(--border);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+  }
+  @media (min-width: 800px) {
+    .panel { width: var(--panel-width); min-height: calc(100vh - 49px); }
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* textarea */
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: rgba(0,0,0,0.25); }
+
+  input[type="text"] {
+    width: 100%;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+    font-family: inherit;
+  }
+  input[type="text"]:focus { border-color: rgba(0,0,0,0.25); }
+
+  /* templates */
+  .tpl-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .tpl-btn {
+    aspect-ratio: 3/4;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--muted);
+    background: var(--bg);
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+    overflow: hidden;
+    padding: 6px;
+  }
+  .tpl-btn.active {
+    border-color: var(--text);
+    color: var(--text);
+    background: var(--surface);
+  }
+  .tpl-preview { width: 100%; flex: 1; border-radius: 6px; }
+  /* mini previews */
+  .tpl-btn[data-tpl="clean"] .tpl-preview { background: #fff; border: 0.5px solid #eee; }
+  .tpl-btn[data-tpl="paper"] .tpl-preview { background: #faf8f3; border: 0.5px solid #e8e4d9; }
+  .tpl-btn[data-tpl="dark"] .tpl-preview { background: #1a1a1a; }
+  .tpl-btn[data-tpl="stone"] .tpl-preview { background: #f0ede8; border: 0.5px solid #d9d4cc; }
+  .tpl-btn[data-tpl="sage"] .tpl-preview { background: #e8ede6; border: 0.5px solid #c8d4c5; }
+  .tpl-btn[data-tpl="ink"] .tpl-preview { background: #1c2533; }
+
+  /* size buttons */
+  .size-row { display: flex; gap: 6px; }
+  .size-btn {
+    flex: 1;
+    padding: 7px;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .size-btn.active { border-color: var(--text); color: var(--text); background: var(--surface); font-weight: 500; }
+
+  /* emoji picker */
+  .emoji-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .emoji-btn {
+    width: 34px;
+    height: 34px;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s;
+  }
+  .emoji-btn:hover { background: #eee; }
+  .emoji-btn.selected { border-color: var(--text); background: var(--surface); }
+
+  /* image upload */
+  .upload-area {
+    border: 0.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--muted);
+    transition: border-color 0.15s;
+  }
+  .upload-area:hover { border-color: rgba(0,0,0,0.25); }
+  #logoPreview {
+    max-height: 48px;
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 8px;
+    display: none;
+  }
+
+  /* font size slider */
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+  }
+  .slider-val { font-size: 12px; color: var(--muted); min-width: 28px; text-align: right; }
+
+  /* action buttons */
+  .action-btn {
+    width: 100%;
+    padding: 11px;
+    border-radius: 10px;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.15s;
+  }
+  .action-btn:hover { background: var(--bg); }
+  .action-btn.primary {
+    background: var(--text);
+    color: #fff;
+    border-color: transparent;
+  }
+  .action-btn.primary:hover { opacity: 0.88; }
+
+  /* ── right: canvas area ── */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+
+  /* ── the card itself ── */
+  #cardWrap {
+    transition: all 0.3s ease;
+  }
+  #card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 40px;
+    transition: all 0.25s ease;
+    overflow: hidden;
+  }
+
+  .card-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .card-badge img {
+    max-height: 32px;
+    max-width: 80px;
+    object-fit: contain;
+  }
+  .card-badge .badge-emoji {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .card-quote {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .card-mark {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 10px;
+    opacity: 0.18;
+    font-family: Georgia, serif;
+    display: block;
+  }
+  .card-text {
+    line-height: 1.8;
+    letter-spacing: 0.02em;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+  .card-sig {
+    font-size: 12px;
+    opacity: 0.5;
+    line-height: 1.5;
+  }
+  .card-deco {
+    opacity: 0.1;
+    font-size: 60px;
+    line-height: 1;
+    font-family: Georgia, serif;
+    margin-left: auto;
+  }
+
+  /* ── templates ── */
+  .tpl-clean {
+    background: #ffffff;
+    color: #1a1a1a;
+    border: 0.5px solid rgba(0,0,0,0.06);
+    border-radius: 20px;
+    box-shadow: 0 2px 24px rgba(0,0,0,0.06);
+  }
+  .tpl-clean .card-footer { border-top: 0.5px solid rgba(0,0,0,0.08); }
+
+  .tpl-paper {
+    background: #faf8f3;
+    color: #3d3730;
+    border-radius: 20px;
+    border: 0.5px solid rgba(150,130,100,0.15);
+    box-shadow: 0 2px 20px rgba(0,0,0,0.07);
+  }
+  .tpl-paper .card-footer { border-top: 0.5px solid rgba(150,130,100,0.18); }
+  .tpl-paper .card-mark { color: #a0907a; }
+
+  .tpl-dark {
+    background: #1a1a1a;
+    color: #e8e6e0;
+    border-radius: 20px;
+  }
+  .tpl-dark .card-footer { border-top: 0.5px solid rgba(255,255,255,0.08); }
+  .tpl-dark .card-mark { color: #ffffff; opacity: 0.15; }
+
+  .tpl-stone {
+    background: #f0ede8;
+    color: #2c2824;
+    border-radius: 20px;
+    border: 0.5px solid rgba(0,0,0,0.07);
+  }
+  .tpl-stone .card-footer { border-top: 0.5px solid rgba(0,0,0,0.08); }
+
+  .tpl-sage {
+    background: linear-gradient(135deg, #e8ede6 0%, #dde6d8 100%);
+    color: #243020;
+    border-radius: 20px;
+  }
+  .tpl-sage .card-footer { border-top: 0.5px solid rgba(0,0,0,0.07); }
+  .tpl-sage .card-mark { color: #5a7a52; }
+
+  .tpl-ink {
+    background: #1c2533;
+    color: #d4dcec;
+    border-radius: 20px;
+  }
+  .tpl-ink .card-footer { border-top: 0.5px solid rgba(255,255,255,0.07); }
+  .tpl-ink .card-mark { color: #7da6e0; opacity: 0.25; }
+
+  /* ── toast ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1a1a1a;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 40px;
+    font-size: 13px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>语录卡片</h1>
+  <span>/ 粘贴文字，导出图片</span>
+</header>
+
+<div class="workspace">
+
+  <!-- ── Left Panel ── -->
+  <div class="panel">
+
+    <!-- text input -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="section-label" style="margin-bottom:0;">文字内容</div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);user-select:none;">
+          <span>自动去除空格</span>
+          <span id="toggleWrap" style="position:relative;display:inline-block;width:32px;height:18px;">
+            <input type="checkbox" id="autoClean" checked style="opacity:0;width:0;height:0;position:absolute;">
+            <span id="toggleTrack" style="position:absolute;inset:0;border-radius:9px;background:var(--text);transition:background 0.2s;"></span>
+            <span id="toggleThumb" style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.2s;transform:translateX(14px);"></span>
+          </span>
+        </label>
+      </div>
+      <textarea id="quoteInput" placeholder="把触动你的文字粘贴到这里…"></textarea>
+    </div>
+
+    <!-- signature -->
+    <div>
+      <div class="section-label">署名（可选）</div>
+      <input type="text" id="sigInput" placeholder="—— 书名 / 作者 / 来源">
+    </div>
+
+    <!-- template -->
+    <div>
+      <div class="section-label">模板</div>
+      <div class="tpl-grid">
+        <button class="tpl-btn active" data-tpl="clean">
+          <div class="tpl-preview"></div>
+          <span>纯白</span>
+        </button>
+        <button class="tpl-btn" data-tpl="paper">
+          <div class="tpl-preview"></div>
+          <span>纸感</span>
+        </button>
+        <button class="tpl-btn" data-tpl="dark">
+          <div class="tpl-preview"></div>
+          <span>暗夜</span>
+        </button>
+        <button class="tpl-btn" data-tpl="stone">
+          <div class="tpl-preview"></div>
+          <span>石灰</span>
+        </button>
+        <button class="tpl-btn" data-tpl="sage">
+          <div class="tpl-preview"></div>
+          <span>苔绿</span>
+        </button>
+        <button class="tpl-btn" data-tpl="ink">
+          <div class="tpl-preview"></div>
+          <span>深蓝</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- size -->
+    <div>
+      <div class="section-label">尺寸</div>
+      <div class="size-row">
+        <button class="size-btn active" data-w="360" data-h="480">故事<br><span style="font-size:10px;opacity:0.6">3∶4</span></button>
+        <button class="size-btn" data-w="400" data-h="400">方形<br><span style="font-size:10px;opacity:0.6">1∶1</span></button>
+        <button class="size-btn" data-w="400" data-h="225">横屏<br><span style="font-size:10px;opacity:0.6">16∶9</span></button>
+      </div>
+    </div>
+
+    <!-- font size -->
+    <div>
+      <div class="section-label">字号</div>
+      <div class="slider-row">
+        <span style="font-size:12px;color:var(--muted)">小</span>
+        <input type="range" id="fontSz" min="13" max="22" value="16" step="1">
+        <span style="font-size:12px;color:var(--muted)">大</span>
+        <span class="slider-val" id="fontSzVal">16</span>
+      </div>
+    </div>
+
+    <!-- emoji decoration -->
+    <div>
+      <div class="section-label">装饰 Emoji（点击添加）</div>
+      <div class="emoji-row" id="emojiPicker">
+        <button class="emoji-btn" data-e="🌿">🌿</button>
+        <button class="emoji-btn" data-e="🌸">🌸</button>
+        <button class="emoji-btn" data-e="✨">✨</button>
+        <button class="emoji-btn" data-e="🍃">🍃</button>
+        <button class="emoji-btn" data-e="🌙">🌙</button>
+        <button class="emoji-btn" data-e="☁️">☁️</button>
+        <button class="emoji-btn" data-e="🕊️">🕊️</button>
+        <button class="emoji-btn" data-e="🌊">🌊</button>
+        <button class="emoji-btn" data-e="🪐">🪐</button>
+        <button class="emoji-btn" data-e="📖">📖</button>
+        <button class="emoji-btn" data-e="🍵">🍵</button>
+        <button class="emoji-btn" data-e="🌻">🌻</button>
+      </div>
+    </div>
+
+    <!-- custom image -->
+    <div>
+      <div class="section-label">上传 Logo / 图片</div>
+      <div class="upload-area" id="uploadArea" onclick="document.getElementById('logoFile').click()">
+        点击选择图片（PNG / JPG）
+        <br>
+        <img id="logoPreview" alt="logo">
+      </div>
+      <input type="file" id="logoFile" accept="image/*" style="display:none">
+      <button class="action-btn" id="clearLogo" style="margin-top:6px;font-size:12px;padding:7px;display:none">移除图片</button>
+    </div>
+
+    <!-- actions -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="action-btn primary" onclick="exportCard()">
+        ↓ 下载图片
+      </button>
+      <button class="action-btn" onclick="copyCard()">
+        复制到剪贴板
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ── Canvas Area ── -->
+  <div class="canvas-area">
+    <div id="cardWrap">
+      <div id="card" class="tpl-clean" style="width:360px; min-height:480px;">
+        <!-- badge row -->
+        <div class="card-badge" id="cardBadge" style="display:none;"></div>
+        <!-- quote -->
+        <div class="card-quote">
+          <span class="card-mark" id="cardMark">"</span>
+          <div class="card-text" id="cardText" style="font-size:16px;">把触动你的句子粘贴在左侧，它会出现在这张卡片里。</div>
+        </div>
+        <!-- footer -->
+        <div class="card-footer" id="cardFooter" style="display:none;">
+          <div class="card-sig" id="cardSig"></div>
+          <div class="card-deco">"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast">已复制到剪贴板 ✓</div>
+
+<script>
+// state
+let currentTpl = 'clean';
+let currentEmoji = '';
+let logoDataUrl = '';
+let cardW = 360, cardH = 480;
+
+// ── clean kindle spaces (Chinese only, preserve newlines) ──
+function cleanSpaces(raw) {
+  return raw.split('\n').map(line => {
+    let out = line.replace(/([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])/g, '$1$2');
+    const cjkCount = (out.match(/[\u4e00-\u9fff]/g) || []).length;
+    const totalLen = out.replace(/\s/g, '').length;
+    if (totalLen > 0 && cjkCount / totalLen > 0.4) {
+      out = out.replace(/([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+/g, '$1');
+      out = out.replace(/\s+([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])/g, '$1');
+    }
+    return out;
+  }).join('\n');
+}
+
+document.getElementById('autoClean').addEventListener('change', function() {
+  const on = this.checked;
+  document.getElementById('toggleTrack').style.background = on ? 'var(--text)' : '#ccc';
+  document.getElementById('toggleThumb').style.transform = on ? 'translateX(14px)' : 'translateX(0)';
+  update();
+});
+
+// ── update card ──
+function update() {
+  const raw = document.getElementById('quoteInput').value.trim();
+  const shouldClean = document.getElementById('autoClean').checked;
+  const text = shouldClean ? cleanSpaces(raw) : raw;
+  const sig = document.getElementById('sigInput').value.trim();
+  const sz = document.getElementById('fontSz').value;
+
+  document.getElementById('cardText').textContent = text || '把触动你的句子粘贴在左侧，它会出现在这张卡片里。';
+  document.getElementById('cardText').style.fontSize = sz + 'px';
+  document.getElementById('fontSzVal').textContent = sz;
+
+  // footer
+  const footer = document.getElementById('cardFooter');
+  const sigEl = document.getElementById('cardSig');
+  if (sig) {
+    footer.style.display = 'flex';
+    sigEl.textContent = sig;
+  } else {
+    footer.style.display = 'none';
+  }
+
+  // badge
+  const badge = document.getElementById('cardBadge');
+  badge.innerHTML = '';
+  if (logoDataUrl) {
+    const img = document.createElement('img');
+    img.src = logoDataUrl;
+    badge.appendChild(img);
+    badge.style.display = 'flex';
+  } else if (currentEmoji) {
+    const span = document.createElement('span');
+    span.className = 'badge-emoji';
+    span.textContent = currentEmoji;
+    badge.appendChild(span);
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── inputs ──
+document.getElementById('quoteInput').addEventListener('input', update);
+document.getElementById('sigInput').addEventListener('input', update);
+document.getElementById('fontSz').addEventListener('input', update);
+
+// ── templates ──
+document.querySelectorAll('.tpl-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tpl = btn.dataset.tpl;
+    const card = document.getElementById('card');
+    card.className = 'tpl-' + tpl;
+    currentTpl = tpl;
+  });
+});
+
+// ── size ──
+document.querySelectorAll('.size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    cardW = parseInt(btn.dataset.w);
+    cardH = parseInt(btn.dataset.h);
+    const card = document.getElementById('card');
+    card.style.width = cardW + 'px';
+    card.style.minHeight = cardH + 'px';
+  });
+});
+
+// ── emoji ──
+document.querySelectorAll('.emoji-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const e = btn.dataset.e;
+    if (currentEmoji === e) {
+      currentEmoji = '';
+      btn.classList.remove('selected');
+    } else {
+      document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+      currentEmoji = e;
+      btn.classList.add('selected');
+    }
+    update();
+  });
+});
+
+// ── logo upload ──
+document.getElementById('logoFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    logoDataUrl = ev.target.result;
+    const preview = document.getElementById('logoPreview');
+    preview.src = logoDataUrl;
+    preview.style.display = 'block';
+    document.getElementById('clearLogo').style.display = 'block';
+    update();
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('clearLogo').addEventListener('click', () => {
+  logoDataUrl = '';
+  document.getElementById('logoPreview').style.display = 'none';
+  document.getElementById('logoPreview').src = '';
+  document.getElementById('clearLogo').style.display = 'none';
+  document.getElementById('logoFile').value = '';
+  update();
+});
+
+// ── export ──
+function getCanvas() {
+  const card = document.getElementById('card');
+  const scale = 2;
+  return html2canvas(card, {
+    scale: scale,
+    useCORS: true,
+    backgroundColor: null,
+    logging: false,
+    width: card.offsetWidth,
+    height: card.offsetHeight,
+  });
+}
+
+function exportCard() {
+  getCanvas().then(canvas => {
+    const link = document.createElement('a');
+    link.download = '语录卡片_' + Date.now() + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+}
+
+function copyCard() {
+  getCanvas().then(canvas => {
+    canvas.toBlob(blob => {
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item]).then(() => showToast('已复制到剪贴板 ✓'));
+      } catch(e) {
+        showToast('请使用下载功能保存图片');
+      }
+    });
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// init
+update();
+</script>
+</body>
+</html>
